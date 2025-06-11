@@ -36,7 +36,6 @@ if (isset($_GET['product_id'])) {
     $chatHeader = "Chat about " . htmlspecialchars($product['title']);
     $showProduct = true;
 
-// Handle chat directly with a user
 } elseif (isset($_GET['user'])) {
     $chatWith = (int)$_GET['user'];
 
@@ -57,12 +56,8 @@ if (isset($_GET['product_id'])) {
     die("No product or user specified.");
 }
 
-// Fetch chat messages
-$stmt = $conn->prepare("
-    SELECT * FROM messages 
-    WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?) 
-    ORDER BY timestamp ASC
-");
+// Fetch messages
+$stmt = $conn->prepare("SELECT * FROM messages WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?) ORDER BY timestamp ASC");
 $stmt->bind_param("iiii", $currentUser, $chatWith, $chatWith, $currentUser);
 $stmt->execute();
 $result = $stmt->get_result();
@@ -72,7 +67,7 @@ while ($row = $result->fetch_assoc()) {
     $messages[] = $row;
 }
 
-// Mark messages as read
+// Mark as read
 $conn->query("UPDATE messages SET is_read = 1 WHERE receiver_id = $currentUser AND sender_id = $chatWith");
 ?>
 <!DOCTYPE html>
@@ -82,6 +77,57 @@ $conn->query("UPDATE messages SET is_read = 1 WHERE receiver_id = $currentUser A
   <title><?= $chatHeader ?> | TradeHub</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+  <div class="max-w-4xl mx-auto p-6">
+    <!-- Chat Header -->
+    <div class="bg-white p-4 rounded-lg shadow mb-6">
+      <h2 class="text-xl font-bold mb-2"><?= $chatHeader ?></h2>
+      <?php if ($showProduct): ?>
+        <?php
+          $images = json_decode($product['images'] ?? '[]', true);
+        ?>
+        <div class="flex items-start gap-4 mt-3">
+          <div class="flex gap-2 overflow-x-auto max-w-[200px] scrollbar-hide">
+            <?php if (!empty($images)): ?>
+              <?php foreach ($images as $img): ?>
+                <img src="<?= htmlspecialchars($img) ?>" alt="Product Image" class="w-20 h-20 object-cover rounded-lg shadow border">
+              <?php endforeach; ?>
+            <?php else: ?>
+              <img src="https://via.placeholder.com/100x100?text=No+Image" alt="No Image" class="w-20 h-20 object-cover rounded-lg shadow border">
+            <?php endif; ?>
+          </div>
+          <div>
+            <p class="font-semibold text-lg"><?= htmlspecialchars($product['title']) ?></p>
+            <p class="text-sm text-gray-600"><?= htmlspecialchars($product['location']) ?> - $<?= number_format($product['price'], 2) ?></p>
+          </div>
+        </div>
+      <?php endif; ?>
+    </div>
+
+    <!-- Chat Box -->
+    <div class="bg-white rounded-lg shadow p-4">
+      <div id="chatbox" class="h-64 overflow-y-auto mb-4 p-2 border rounded bg-gray-50">
+        <?php foreach ($messages as $msg): ?>
+          <div class="mb-2 <?= $msg['sender_id'] == $currentUser ? 'text-right' : 'text-left' ?>">
+            <span class="inline-block px-3 py-1 rounded-full max-w-xs break-words <?= $msg['sender_id'] == $currentUser ? 'bg-black text-white' : 'bg-gray-300' ?>">
+              <?= htmlspecialchars($msg['message']) ?>
+            </span>
+          </div>
+        <?php endforeach; ?>
+      </div>
+
+      <div class="flex">
+        <input type="text" id="message" placeholder="Type a message..." class="flex-1 border px-4 py-2 rounded-l focus:outline-none">
+        <button onclick="sendMessage()" class="bg-black text-white px-4 py-2 rounded-r hover:bg-gray-800">Send</button>
+      </div>
+    </div>
+
+    <div class="mt-6 text-center">
+      <a href="home.php" class="text-blue-600 underline">← Back to Marketplace</a>
+    </div>
+  </div>
+
   <script>
     function sendMessage() {
       const msg = document.getElementById('message').value;
@@ -91,8 +137,7 @@ $conn->query("UPDATE messages SET is_read = 1 WHERE receiver_id = $currentUser A
         method: 'POST',
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
         body: 'message=' + encodeURIComponent(msg) + '&receiver_id=<?= $chatWith ?>'
-      })
-      .then(() => {
+      }).then(() => {
         document.getElementById('message').value = '';
         loadMessages();
       });
@@ -108,41 +153,5 @@ $conn->query("UPDATE messages SET is_read = 1 WHERE receiver_id = $currentUser A
 
     setInterval(loadMessages, 3000);
   </script>
-</head>
-<body class="bg-gray-100">
-  <div class="max-w-4xl mx-auto p-6">
-    <!-- Chat Header -->
-    <div class="bg-white p-4 rounded-lg shadow mb-6">
-      <h2 class="text-xl font-bold"><?= $chatHeader ?></h2>
-      <?php if ($showProduct): ?>
-        <div class="flex items-center mt-3">
-          <img src="<?= htmlspecialchars($product['image_url']) ?>" alt="Product Image" class="w-20 h-20 object-cover rounded-lg mr-4">
-          <div>
-            <p class="font-semibold"><?= htmlspecialchars($product['title']) ?></p>
-            <p class="text-sm text-gray-600"><?= htmlspecialchars($product['location']) ?> - $<?= number_format($product['price'], 2) ?></p>
-          </div>
-        </div>
-      <?php endif; ?>
-    </div>
-
-    <!-- Chat Box -->
-    <div class="bg-white rounded-lg shadow p-4">
-      <div id="chatbox" class="h-64 overflow-y-auto mb-4 p-2 border rounded bg-gray-50">
-        <?php foreach ($messages as $msg): ?>
-          <div class="mb-2 <?= $msg['sender_id'] == $currentUser ? 'text-right' : 'text-left' ?>">
-            <span class="inline-block px-3 py-1 rounded-full <?= $msg['sender_id'] == $currentUser ? 'bg-black text-white' : 'bg-gray-300' ?>">
-              <?= htmlspecialchars($msg['message']) ?>
-            </span>
-          </div>
-        <?php endforeach; ?>
-      </div>
-
-      <div class="flex">
-        <input type="text" id="message" placeholder="Type a message..."
-               class="flex-1 border px-4 py-2 rounded-l focus:outline-none">
-        <button onclick="sendMessage()" class="bg-black text-white px-4 py-2 rounded-r hover:bg-gray-800">Send</button>
-      </div>
-    </div>
-  </div>
 </body>
 </html>
