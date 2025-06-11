@@ -2,18 +2,17 @@
 session_start();
 require_once 'config.php';
 
-if (!isset($_SESSION['user_id'])) exit;
+if (!isset($_SESSION['user_id'])) exit();
 
 $user_id = $_SESSION['user_id'];
 
-// You can later improve this by tracking city or category history
 $recommend = $conn->prepare("SELECT * FROM products WHERE user_id != ? ORDER BY RAND() LIMIT 6");
 $recommend->bind_param("i", $user_id);
 $recommend->execute();
 $result = $recommend->get_result();
 
 if ($result->num_rows > 0): ?>
-  <h2 class="text-2xl font-bold mb-4">🔮 You Might Like These</h2>
+  <h2 class="text-2xl font-bold mb-4">🔍 You Might Like These</h2>
   <div class="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
   <?php
     $color_classes = ['bg-blue-100', 'bg-orange-100', 'bg-purple-100', 'bg-sky-100'];
